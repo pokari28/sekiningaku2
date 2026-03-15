@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ゆーじ君の営業達成アプリ</title>
+    <style>
+        body { font-family: sans-serif; padding: 15px; background-color: #f4f7f6; color: #333; margin: 0; }
+        .card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { font-size: 1.1rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        input, button, textarea { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 10px; border-radius: 4px; border: 1px solid #ccc; font-size: 1rem; }
+        button { background-color: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; padding: 12px; }
+        button:hover { background-color: #2980b9; }
+        .success-btn { background-color: #2ecc71; margin-top: 5px; }
+        .success-btn:hover { background-color: #27ae60; }
+        .summary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px; }
+        .summary-box { width: 48%; background: #e8f4f8; padding: 10px; border-radius: 8px; text-align: center; box-sizing: border-box;}
+        .summary-box.alert { background: #fdf2e9; }
+        .summary-box span { display: block; font-size: 0.75rem; color: #666; font-weight: bold; margin-bottom: 3px; }
+        .summary-box strong { font-size: 1.1rem; color: #333; }
+        .summary-box.alert strong { color: #e74c3c; }
+        .item { border-left: 4px solid #f39c12; background: #fafafa; padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+        .item.won { border-left-color: #2ecc71; background: #eefaf1; opacity: 0.9; }
+        .item p { margin: 4px 0; font-size: 0.9rem; }
+        .won-group { background: #fff; padding: 8px; border-radius: 4px; border: 1px dashed #ccc; margin-top: 8px; }
+        .won-group input { margin-bottom: 5px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+
+<div class="card">
+    <h2>🎯 今月のノルマ</h2>
+    <input type="number" id="norma" placeholder="目標金額を入力 (例: 1000000)" onchange="calculate()">
+    
+    <div class="summary">
+        <div class="summary-box"><span>目標額</span><strong id="display-norma">¥0</strong></div>
+        <div class="summary-box"><span>受注合計</span><strong id="display-won">¥0</strong></div>
+        <div class="summary-box alert"><span>あといくら？(不足額)</span><strong id="display-shortage">¥0</strong></div>
+        <div class="summary-box"><span>見込み合計</span><strong id="display-pipeline">¥0</strong></div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>➕ 見込みを追加</h2>
+    <input type="text" id="company" placeholder="企業名">
+    <input type="text" id="product" placeholder="商品名">
+    <input type="number" id="estimate" placeholder="見込み金額">
+    <textarea id="comment" placeholder="コメント (例: 決裁者クリア、来週回答)" rows="2"></textarea>
+    <button onclick="addProspect()">リストに追加する</button>
+</div>
+
+<div class="card">
+    <h2>📋 案件リスト</h2>
+    <div id="prospect-list"></div>
+</div>
+
+<script>
+    let prospects = [];
+
+    // 金額を見やすくするおまじない
+    function formatCurrency(num) {
+        return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(num || 0);
+    }
+
+    // リストに追加する動き
+    function addProspect() {
+        const company = document.getElementById('company').value;
+        const product = document.getElementById('product').value;
+        const estimate = parseInt(document.getElementById('estimate').value) || 0;
+        const comment = document.getElementById('comment').value;
+
+        if (!company) { alert("企業名を入力してね！"); return; }
+
+        prospects.push({
+            id: Date.now(),
+            company,
+            product,
+            estimate,
+            comment,
+            isWon: false,
+            wonAmount: 0
+        });
+
+        // 入力欄を空にする
+        document.getElementById('company').value = '';
+        document.getElementById('product').value = '';
+        document.getElementById('estimate').value = '';
+        document.getElementById('comment').value = '';
+
+        renderList();
+    }
+
+    // 受注したときの動き
+    function markAsWon(id) {
+        const wonInput = document.getElementById(`won-amount-${id}`);
+        const wonAmount = parseInt(wonInput.value) || 0;
+        
+        if (wonAmount <= 0) { alert("受注金額を入力してね！"); return; }
+
+        const prospect = prospects.find(p => p.id === id);
+        if (prospect) {
+            prospect.isWon = true;
+            prospect.wonAmount = wonAmount;
+            
+            // 🎉 ここで紙吹雪ドーン！
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+
+            renderList();
+        }
+    }
+
+    // 画面にリストを表示する
+    function renderList() {
+        const listDiv = document.getElementById('prospect-list');
+        listDiv.innerHTML = '';
+
+        prospects.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'item ' + (p.isWon ? 'won' : '');
+            
+            let actionHtml = '';
+            // まだ見込みの場合は受注入力欄を出す
+            if (!p.isWon) {
+                actionHtml = `
+                    <div class="won-group">
+                        <input type="number" id="won-amount-${p.id}" placeholder="実際の受注金額を入力">
+                        <button class="success-btn" onclick="markAsWon(${p.id})">受注した！🎉</button>
+                    </div>
+                `;
+            } else {
+                // 受注済みの場合は確定金額を表示
+                actionHtml = `<p style="color: #27ae60;"><strong>🎊 受注確定: ${formatCurrency(p.wonAmount)}</strong></p>`;
+            }
+
+            item.innerHTML = `
+                <p><strong>🏢 ${p.company}</strong> / 📦 ${p.product}</p>
+                <p>💰 見込み: ${formatCurrency(p.estimate)}</p>
+                ${p.comment ? `<p>📝 メモ: ${p.comment}</p>` : ''}
+                ${actionHtml}
+            `;
+            listDiv.appendChild(item);
+        });
+
+        calculate();
+    }
+
+    // 金額の計算をする
+    function calculate() {
+        const norma = parseInt(document.getElementById('norma').value) || 0;
+        
+        let wonTotal = 0;
+        let pipelineTotal = 0;
+
+        prospects.forEach(p => {
+            if (p.isWon) {
+                wonTotal += p.wonAmount; // 受注したら受注合計へ
+            } else {
+                pipelineTotal += p.estimate; // まだなら見込み合計へ
+            }
+        });
+
+        const shortage = norma - wonTotal; // 不足額の計算
+
+        document.getElementById('display-norma').innerText = formatCurrency(norma);
+        document.getElementById('display-won').innerText = formatCurrency(wonTotal);
+        document.getElementById('display-shortage').innerText = formatCurrency(shortage > 0 ? shortage : 0);
+        document.getElementById('display-pipeline').innerText = formatCurrency(pipelineTotal);
+    }
+</script>
+</body>
+</html>
